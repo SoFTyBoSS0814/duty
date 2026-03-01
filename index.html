@@ -69,7 +69,7 @@ th, td {
 </head>
 <body>
 
-<h1>🚒 HLSA OKF Dutyperc & Fizetés számláló</h1>
+<h1>🚒 MTA Tűzoltó Bevétel & Óra Tracker</h1>
 
 <div>
     <label>Kezdés:</label>
@@ -88,8 +88,12 @@ th, td {
 
 <div class="dashboard">
     <div class="box">
+        <h3>Teljes Ledolgozott Óra</h3>
+        <span id="totalWorked">0.00 óra</span>
+    </div>
+    <div class="box">
         <h3>Teljes Fizetett Óra</h3>
-        <span id="totalHours">0 óra</span>
+        <span id="totalPaid">0 óra</span>
     </div>
     <div class="box">
         <h3>Teljes Bevétel</h3>
@@ -102,7 +106,8 @@ th, td {
 <tr>
 <th>Kezdés</th>
 <th>Vége</th>
-<th>Fizetett óra</th>
+<th>Ledolgozott</th>
+<th>Fizetett</th>
 <th>Fa</th>
 <th>Bevétel</th>
 <th>Törlés</th>
@@ -130,7 +135,7 @@ function timeToMinutes(t){
 function calcMinutes(start,end){
     let s = timeToMinutes(start);
     let e = timeToMinutes(end);
-    if(e < s) e += 1440; // éjfél átlépés
+    if(e < s) e += 1440;
     return e - s;
 }
 
@@ -149,13 +154,16 @@ function addShift(){
     }
 
     const totalMinutes = calcMinutes(start,end);
-    const paidHours = Math.floor(totalMinutes / 60); // CSAK teljes órák
+
+    const workedHours = totalMinutes / 60; // tizedes
+    const paidHours = Math.floor(totalMinutes / 60); // egész
 
     const money = (paidHours * HOURLY_WAGE) + (wood * WOOD_PRICE);
 
     shifts.push({
         start,
         end,
+        workedHours,
         paidHours,
         wood,
         money
@@ -183,17 +191,20 @@ function render(){
     const table = document.getElementById("shiftTable");
     table.innerHTML = "";
 
-    let totalHours = 0;
+    let totalWorked = 0;
+    let totalPaid = 0;
     let totalMoney = 0;
 
     shifts.forEach((shift,index)=>{
-        totalHours += shift.paidHours;
+        totalWorked += shift.workedHours;
+        totalPaid += shift.paidHours;
         totalMoney += shift.money;
 
         table.innerHTML += `
         <tr>
             <td>${shift.start}</td>
             <td>${shift.end}</td>
+            <td>${shift.workedHours.toFixed(2)} óra</td>
             <td>${shift.paidHours} óra</td>
             <td>${shift.wood}</td>
             <td>${formatMoney(shift.money)}</td>
@@ -202,15 +213,16 @@ function render(){
         `;
     });
 
-    document.getElementById("totalHours").innerText = totalHours + " óra";
+    document.getElementById("totalWorked").innerText = totalWorked.toFixed(2) + " óra";
+    document.getElementById("totalPaid").innerText = totalPaid + " óra";
     document.getElementById("totalMoney").innerText = formatMoney(totalMoney);
 }
 
 function exportCSV(){
-    let csv = "Kezdés,Vége,Fizetett órák,Fa,Bevétel\n";
+    let csv = "Kezdés,Vége,Ledolgozott,Fizetett,Fa,Bevétel\n";
 
     shifts.forEach(s=>{
-        csv += `${s.start},${s.end},${s.paidHours},${s.wood},${s.money}\n`;
+        csv += `${s.start},${s.end},${s.workedHours.toFixed(2)},${s.paidHours},${s.wood},${s.money}\n`;
     });
 
     let blob = new Blob([csv],{type:"text/csv"});
