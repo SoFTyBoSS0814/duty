@@ -148,7 +148,6 @@ const HOURLY_WAGE = 1900000;
 const WOOD_PRICE = 5000000;
 
 let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
-
 let liveStartTime = null;
 let liveInterval = null;
 
@@ -198,15 +197,26 @@ function addShift(){
     render();
 }
 
+// ------------------ LIVE SZOLGÁLAT ------------------
+
 function startLive(){
     if(liveStartTime){
         alert("Már fut egy szolgálat!");
         return;
     }
 
-    liveStartTime = new Date();
-    document.getElementById("liveStatus").innerText = "Szolgálat folyamatban...";
+    // Ellenőrizzük, van-e korábban mentett kezdés
+    const savedStart = localStorage.getItem("liveStartTime");
+    if(savedStart){
+        liveStartTime = new Date(savedStart);
+    } else {
+        // Például 7 perccel ezelőtt kezdéshez:
+        // liveStartTime = new Date(Date.now() - 7*60*1000);
+        liveStartTime = new Date();
+        localStorage.setItem("liveStartTime", liveStartTime.toISOString());
+    }
 
+    document.getElementById("liveStatus").innerText = "Szolgálat folyamatban...";
     liveInterval = setInterval(updateLiveTimer, 1000);
 }
 
@@ -252,11 +262,24 @@ function stopLive(){
     saveData();
     render();
 
+    // Reset
     liveStartTime = null;
     document.getElementById("liveStatus").innerText = "Nincs aktív szolgálat";
     document.getElementById("liveTimer").innerText = "00:00:00";
     document.getElementById("liveWood").value = "";
+
+    localStorage.removeItem("liveStartTime");
 }
+
+// Betöltéskor ellenőrizzük, ha volt aktív live szolgálat
+const savedStart = localStorage.getItem("liveStartTime");
+if(savedStart){
+    liveStartTime = new Date(savedStart);
+    document.getElementById("liveStatus").innerText = "Szolgálat folyamatban...";
+    liveInterval = setInterval(updateLiveTimer, 1000);
+}
+
+// ------------------ SHIFT TÁBLÁZAT ------------------
 
 function deleteShift(index){
     shifts.splice(index,1);
