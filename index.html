@@ -1,138 +1,196 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-    <meta charset="UTF-8">
-    <title>MTA Tűzoltó Szolgálat Követő</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #1e1e1e;
-            color: white;
-            padding: 20px;
-        }
-        h1 {
-            color: #ff4d4d;
-        }
-        input, button {
-            padding: 8px;
-            margin: 5px;
-            border-radius: 5px;
-            border: none;
-        }
-        button {
-            background-color: #ff4d4d;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #cc0000;
-        }
-        table {
-            width: 100%;
-            margin-top: 20px;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 10px;
-            border-bottom: 1px solid #444;
-            text-align: center;
-        }
-        .total {
-            margin-top: 20px;
-            font-size: 18px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTA Szolgálat Követő</title>
+
+<style>
+    body {
+        background: linear-gradient(135deg, #1a1a1a, #2b0000);
+        color: white;
+        font-family: Arial, sans-serif;
+        padding: 20px;
+    }
+
+    h1 {
+        color: #ff3333;
+        text-align: center;
+    }
+
+    .card {
+        background: #262626;
+        padding: 20px;
+        border-radius: 10px;
+        max-width: 600px;
+        margin: auto;
+        box-shadow: 0 0 15px rgba(255,0,0,0.3);
+    }
+
+    input {
+        padding: 8px;
+        margin: 5px;
+        border-radius: 5px;
+        border: none;
+        font-size: 16px;
+    }
+
+    button {
+        padding: 8px 12px;
+        margin: 5px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .addBtn {
+        background: #ff3333;
+        color: white;
+    }
+
+    .resetBtn {
+        background: #555;
+        color: white;
+    }
+
+    table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 10px;
+        text-align: center;
+        border-bottom: 1px solid #444;
+    }
+
+    .totalBox {
+        margin-top: 15px;
+        font-size: 18px;
+        text-align: center;
+    }
+
+    .danger {
+        background: #990000;
+        color: white;
+    }
+
+</style>
 </head>
 <body>
 
 <h1>🚒 MTA Tűzoltó Szolgálat Követő</h1>
 
-<label>Szolgálat kezdete:</label>
-<input type="datetime-local" id="start">
+<div class="card">
 
-<label>Szolgálat vége:</label>
-<input type="datetime-local" id="end">
+    <label>Kezdés (óra:perc)</label><br>
+    <input type="time" id="start">
 
-<button onclick="addShift()">Hozzáadás</button>
+    <label>Vége (óra:perc)</label><br>
+    <input type="time" id="end">
 
-<table>
-    <thead>
-        <tr>
-            <th>Kezdés</th>
-            <th>Befejezés</th>
-            <th>Óra</th>
-            <th>Törlés</th>
-        </tr>
-    </thead>
-    <tbody id="shiftTable"></tbody>
-</table>
+    <br>
+    <button class="addBtn" onclick="addShift()">➕ Hozzáadás</button>
+    <button class="resetBtn" onclick="resetAll()">🗑 Összes törlése</button>
 
-<div class="total">
-    Összes ledolgozott idő: <span id="totalHours">0</span> óra
+    <table>
+        <thead>
+            <tr>
+                <th>Kezdés</th>
+                <th>Vége</th>
+                <th>Időtartam</th>
+                <th>Törlés</th>
+            </tr>
+        </thead>
+        <tbody id="shiftTable"></tbody>
+    </table>
+
+    <div class="totalBox">
+        Összes ledolgozott idő: 
+        <strong><span id="totalHours">0</span> óra</strong>
+    </div>
+
 </div>
 
 <script>
-    let shifts = JSON.parse(localStorage.getItem("shifts")) || [];
+let shifts = JSON.parse(localStorage.getItem("mta_shifts")) || [];
 
-    function saveData() {
-        localStorage.setItem("shifts", JSON.stringify(shifts));
+function saveData() {
+    localStorage.setItem("mta_shifts", JSON.stringify(shifts));
+}
+
+function timeToMinutes(time) {
+    const [hours, minutes] = time.split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+function calculateDuration(start, end) {
+    let startMin = timeToMinutes(start);
+    let endMin = timeToMinutes(end);
+
+    // Éjfél átlépés kezelése
+    if (endMin < startMin) {
+        endMin += 24 * 60;
     }
 
-    function calculateHours(start, end) {
-        const diff = new Date(end) - new Date(start);
-        return (diff / (1000 * 60 * 60)).toFixed(2);
+    return (endMin - startMin) / 60;
+}
+
+function addShift() {
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+
+    if (!start || !end) {
+        alert("Tölts ki mindkét mezőt!");
+        return;
     }
 
-    function addShift() {
-        const start = document.getElementById("start").value;
-        const end = document.getElementById("end").value;
+    const duration = calculateDuration(start, end).toFixed(2);
 
-        if (!start || !end) {
-            alert("Tölts ki mindkét mezőt!");
-            return;
-        }
-
-        if (new Date(end) <= new Date(start)) {
-            alert("A befejezés nem lehet korábbi, mint a kezdés!");
-            return;
-        }
-
-        const hours = calculateHours(start, end);
-
-        shifts.push({ start, end, hours });
-        saveData();
-        render();
-    }
-
-    function deleteShift(index) {
-        shifts.splice(index, 1);
-        saveData();
-        render();
-    }
-
-    function render() {
-        const table = document.getElementById("shiftTable");
-        table.innerHTML = "";
-
-        let total = 0;
-
-        shifts.forEach((shift, index) => {
-            total += parseFloat(shift.hours);
-
-            table.innerHTML += `
-                <tr>
-                    <td>${shift.start.replace("T", " ")}</td>
-                    <td>${shift.end.replace("T", " ")}</td>
-                    <td>${shift.hours}</td>
-                    <td><button onclick="deleteShift(${index})">❌</button></td>
-                </tr>
-            `;
-        });
-
-        document.getElementById("totalHours").innerText = total.toFixed(2);
-    }
-
+    shifts.push({ start, end, duration });
+    saveData();
     render();
+}
+
+function deleteShift(index) {
+    shifts.splice(index, 1);
+    saveData();
+    render();
+}
+
+function resetAll() {
+    if (confirm("Biztos törlöd az összes szolgálatot?")) {
+        shifts = [];
+        saveData();
+        render();
+    }
+}
+
+function render() {
+    const table = document.getElementById("shiftTable");
+    table.innerHTML = "";
+
+    let total = 0;
+
+    shifts.forEach((shift, index) => {
+        total += parseFloat(shift.duration);
+
+        table.innerHTML += `
+            <tr>
+                <td>${shift.start}</td>
+                <td>${shift.end}</td>
+                <td>${shift.duration} óra</td>
+                <td><button class="danger" onclick="deleteShift(${index})">❌</button></td>
+            </tr>
+        `;
+    });
+
+    document.getElementById("totalHours").innerText = total.toFixed(2);
+}
+
+render();
 </script>
 
 </body>
