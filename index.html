@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HLSA OKF Duty Tracker</title>
 <style>
-body { background: linear-gradient(135deg, #1a1a1a, #2a0000); color: white; font-family: Arial, sans-serif; padding: 20px; }
+body { background: linear-gradient(135deg,#1a1a1a,#2a0000); color:white; font-family:Arial,sans-serif; padding:20px; }
 h1 { text-align:center; color:#ff3b3b; }
 input { padding:8px; margin:5px; border-radius:5px; border:none; }
 button { padding:8px 12px; margin:5px; border-radius:5px; border:none; cursor:pointer; font-weight:bold; }
-.addBtn { background: #ff3b3b; color:white; }
+.addBtn { background:#ff3b3b; color:white; }
 .exportBtn { background:#0099ff; color:white; }
 .resetBtn { background:#555; color:white; }
 .danger { background:#990000; color:white; }
@@ -17,6 +17,8 @@ button { padding:8px 12px; margin:5px; border-radius:5px; border:none; cursor:po
 .box { background:#222; padding:15px; border-radius:10px; text-align:center; box-shadow:0 0 10px rgba(255,0,0,0.3); }
 table { width:100%; border-collapse:collapse; margin-top:20px; }
 th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
+.progress-container { background:#333; border-radius:10px; width:100%; height:25px; margin-top:20px; }
+.progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; color:white; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -51,9 +53,11 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <button class="addBtn" onclick="startLive()">🚀 Szolgálat kezdése</button>
 <button class="danger" onclick="stopLive()">🛑 Szolgálat befejezése</button>
 <br><br>
-<label>Ledolgozott idő kézzel (perc):</label>
+<label>Ledolgozott idő órában:</label>
+<input type="number" id="manualHours" placeholder="0" step="0.01">
+<label>Ledolgozott idő percben:</label>
 <input type="number" id="manualMinutes" placeholder="0">
-<button class="addBtn" onclick="saveManualLive()">💾 Mentés kézzel</button>
+<button class="addBtn" onclick="saveManualDuty()">💾 Mentés kézzel</button>
 </div>
 
 <div class="dashboard">
@@ -71,17 +75,24 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <tbody id="shiftTable"></tbody>
 </table>
 
-<script>
-const HOURLY_WAGE = 1900000;
-const WOOD_PRICE = 5000000;
-let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
-let liveStartTime = null;
-let liveInterval = null;
+<!-- 60 ÓRA PROGRESS -->
+<h3>Kétszer hetente elvárt 60 óra teljesítés:</h3>
+<div class="progress-container">
+<div class="progress-bar" id="progressBar">0%</div>
+</div>
 
-function saveData(){ localStorage.setItem("mta_final_shifts", JSON.stringify(shifts)); }
+<script>
+const HOURLY_WAGE=1900000;
+const WOOD_PRICE=5000000;
+let shifts=JSON.parse(localStorage.getItem("mta_final_shifts"))||[];
+let liveStartTime=null;
+let liveInterval=null;
+
+// Alap függvények
+function saveData(){ localStorage.setItem("mta_final_shifts",JSON.stringify(shifts)); }
 function showTab(tab){
-document.getElementById("manualTab").style.display = (tab==='manual')?'block':'none';
-document.getElementById("liveTab").style.display = (tab==='live')?'block':'none';
+document.getElementById("manualTab").style.display=(tab==='manual')?'block':'none';
+document.getElementById("liveTab").style.display=(tab==='live')?'block':'none';
 }
 function timeToMinutes(t){ const [h,m]=t.split(":").map(Number); return h*60+m; }
 function calcMinutes(start,end){ let s=timeToMinutes(start); let e=timeToMinutes(end); if(e<s)e+=1440; return e-s; }
@@ -106,7 +117,7 @@ function startLive(){
 if(liveStartTime){ alert("Már fut egy szolgálat!"); return; }
 const savedStart=localStorage.getItem("liveStartTime");
 if(savedStart){ liveStartTime=new Date(savedStart); } 
-else { liveStartTime=new Date(); localStorage.setItem("liveStartTime", liveStartTime.toISOString()); }
+else { liveStartTime=new Date(); localStorage.setItem("liveStartTime",liveStartTime.toISOString()); }
 document.getElementById("liveStatus").innerText="Szolgálat folyamatban...";
 liveInterval=setInterval(updateLiveTimer,1000);
 }
@@ -128,11 +139,8 @@ const workedHours=totalMinutes/60;
 const paidHours=Math.floor(workedHours);
 const wood=parseInt(document.getElementById("liveWood").value)||0;
 const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
-shifts.push({
-start: liveStartTime.toTimeString().slice(0,5),
-end: endTime.toTimeString().slice(0,5),
-workedHours, paidHours, wood, money
-});
+shifts.push({start:liveStartTime.toTimeString().slice(0,5),end:endTime.toTimeString().slice(0,5),
+workedHours,paidHours,wood,money});
 saveData(); render();
 liveStartTime=null;
 document.getElementById("liveStatus").innerText="Nincs aktív szolgálat";
@@ -141,44 +149,52 @@ document.getElementById("liveWood").value="";
 localStorage.removeItem("liveStartTime");
 }
 
-// Kézi mentés percben
-function saveManualLive(){
-const minutes=parseInt(document.getElementById("manualMinutes").value);
-if(!minutes||minutes<=0){ alert("Adj meg egy érvényes ledolgozott időt percben!"); return; }
-const workedHours=minutes/60;
+// Kézi mentés
+function saveManualDuty(){
+const hours=parseFloat(document.getElementById("manualHours").value)||0;
+const minutes=parseInt(document.getElementById("manualMinutes").value)||0;
+if(hours<=0 && minutes<=0){ alert("Adj meg legalább egy órát vagy percet!"); return; }
+const workedHours=hours+(minutes/60);
 const paidHours=Math.floor(workedHours);
 const wood=parseInt(document.getElementById("liveWood").value)||0;
 const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
 const now=new Date();
 const endTime=now.toTimeString().slice(0,5);
-const startTime=new Date(now-minutes*60*1000).toTimeString().slice(0,5);
+const startTime=new Date(now-workedHours*3600000).toTimeString().slice(0,5);
 shifts.push({start:startTime,end:endTime,workedHours,paidHours,wood,money});
 saveData(); render();
+document.getElementById("manualHours").value="";
 document.getElementById("manualMinutes").value="";
 document.getElementById("liveWood").value="";
 alert("Kézi szolgálat mentve!");
 }
 
-// Betöltéskor ellenőrzés élő szolgálatra
+// Betöltéskor élő szolgálat
 const savedStart=localStorage.getItem("liveStartTime");
 if(savedStart){ liveStartTime=new Date(savedStart); document.getElementById("liveStatus").innerText="Szolgálat folyamatban..."; liveInterval=setInterval(updateLiveTimer,1000); }
 
-// Táblázat
+// Táblázat és reset
 function deleteShift(index){ shifts.splice(index,1); saveData(); render(); }
 function resetAll(){ if(confirm("Biztos törlöd az összes adatot?")){ shifts=[]; saveData(); render(); } }
+
+// Render + progress
 function render(){
 const table=document.getElementById("shiftTable"); table.innerHTML="";
 let totalWorked=0,totalPaid=0,totalMoney=0;
 shifts.forEach((shift,index)=>{
 totalWorked+=shift.workedHours; totalPaid+=shift.paidHours; totalMoney+=shift.money;
-table.innerHTML+=`<tr>
-<td>${shift.start}</td><td>${shift.end}</td><td>${shift.workedHours.toFixed(2)} óra</td><td>${shift.paidHours} óra</td>
-<td>${shift.wood}</td><td>${formatMoney(shift.money)}</td>
+table.innerHTML+=`<tr><td>${shift.start}</td><td>${shift.end}</td><td>${shift.workedHours.toFixed(2)} óra</td>
+<td>${shift.paidHours} óra</td><td>${shift.wood}</td><td>${formatMoney(shift.money)}</td>
 <td><button class="danger" onclick="deleteShift(${index})">❌</button></td></tr>`;
 });
 document.getElementById("totalWorked").innerText=totalWorked.toFixed(2)+" óra";
 document.getElementById("totalPaid").innerText=totalPaid+" óra";
 document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
+
+// Progress bar 60 órához
+const progress=Math.min((totalWorked/60)*100,100);
+document.getElementById("progressBar").style.width=progress+"%";
+document.getElementById("progressBar").innerText=progress.toFixed(1)+"%";
 }
 
 // CSV export
