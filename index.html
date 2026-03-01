@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTA Tűzoltó Pénzügyi Rendszer</title>
+<title>MTA Tűzoltó Bevétel Tracker</title>
 
 <style>
 body {
-    background: linear-gradient(135deg, #1a1a1a, #300000);
+    background: linear-gradient(135deg, #1a1a1a, #2a0000);
     color: white;
     font-family: Arial, sans-serif;
     padding: 20px;
@@ -18,7 +18,7 @@ h1 {
     color: #ff3b3b;
 }
 
-input, select {
+input {
     padding: 8px;
     margin: 5px;
     border-radius: 5px;
@@ -69,12 +69,9 @@ th, td {
 </head>
 <body>
 
-<h1>🚒 MTA Tűzoltó Bevétel & Szolgálat Rendszer</h1>
+<h1>🚒 MTA Tűzoltó Bevétel & Óra Tracker</h1>
 
 <div>
-    <label>Hónap:</label>
-    <select id="month"></select>
-
     <label>Kezdés:</label>
     <input type="time" id="start">
 
@@ -92,22 +89,17 @@ th, td {
 <div class="dashboard">
     <div class="box">
         <h3>Teljes Óra</h3>
-        <span id="totalHours">0</span>
+        <span id="totalHours">0 óra</span>
     </div>
     <div class="box">
         <h3>Teljes Bevétel</h3>
         <span id="totalMoney">0 Ft</span>
-    </div>
-    <div class="box">
-        <h3>Havi Bevétel</h3>
-        <span id="monthlyMoney">0 Ft</span>
     </div>
 </div>
 
 <table>
 <thead>
 <tr>
-<th>Hónap</th>
 <th>Kezdés</th>
 <th>Vége</th>
 <th>Óra</th>
@@ -124,21 +116,10 @@ th, td {
 const HOURLY_WAGE = 1900000;
 const WOOD_PRICE = 5000000;
 
-const monthSelect = document.getElementById("month");
-const months = ["Január","Február","Március","Április","Május","Június",
-"Július","Augusztus","Szeptember","Október","November","December"];
-
-months.forEach((m,i)=>{
-    let option=document.createElement("option");
-    option.value=i;
-    option.text=m;
-    monthSelect.appendChild(option);
-});
-
-let shifts = JSON.parse(localStorage.getItem("mta_money_shifts")) || [];
+let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
 
 function saveData(){
-    localStorage.setItem("mta_money_shifts", JSON.stringify(shifts));
+    localStorage.setItem("mta_final_shifts", JSON.stringify(shifts));
 }
 
 function timeToMinutes(t){
@@ -158,20 +139,19 @@ function formatMoney(x){
 }
 
 function addShift(){
-    const month=monthSelect.value;
     const start=document.getElementById("start").value;
     const end=document.getElementById("end").value;
     const wood=parseInt(document.getElementById("wood").value)||0;
 
     if(!start||!end){
-        alert("Tölts ki mindent!");
+        alert("Tölts ki minden mezőt!");
         return;
     }
 
     const hours=calcDuration(start,end);
     const money=(hours*HOURLY_WAGE)+(wood*WOOD_PRICE);
 
-    shifts.push({month,start,end,hours,wood,money});
+    shifts.push({start,end,hours,wood,money});
     saveData();
     render();
 }
@@ -195,19 +175,13 @@ function render(){
     table.innerHTML="";
     let totalHours=0;
     let totalMoney=0;
-    let monthlyMoney=0;
-    let selectedMonth=monthSelect.value;
 
     shifts.forEach((s,i)=>{
         totalHours+=s.hours;
         totalMoney+=s.money;
-        if(s.month==selectedMonth){
-            monthlyMoney+=s.money;
-        }
 
         table.innerHTML+=`
         <tr>
-        <td>${months[s.month]}</td>
         <td>${s.start}</td>
         <td>${s.end}</td>
         <td>${s.hours.toFixed(2)}</td>
@@ -219,13 +193,12 @@ function render(){
 
     document.getElementById("totalHours").innerText=totalHours.toFixed(2)+" óra";
     document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
-    document.getElementById("monthlyMoney").innerText=formatMoney(monthlyMoney);
 }
 
 function exportCSV(){
-    let csv="Hónap,Kezdés,Vége,Óra,Fa,Bevétel\n";
+    let csv="Kezdés,Vége,Óra,Fa,Bevétel\n";
     shifts.forEach(s=>{
-        csv+=`${months[s.month]},${s.start},${s.end},${s.hours},${s.wood},${s.money}\n`;
+        csv+=`${s.start},${s.end},${s.hours},${s.wood},${s.money}\n`;
     });
 
     let blob=new Blob([csv],{type:"text/csv"});
@@ -234,8 +207,6 @@ function exportCSV(){
     a.download="mta_bevetel.csv";
     a.click();
 }
-
-monthSelect.addEventListener("change",render);
 
 render();
 
