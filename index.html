@@ -71,7 +71,14 @@ th, td {
 
 <h1>🚒 OKF Duty & Bevétel Tracker</h1>
 
-<div>
+<div style="text-align:center; margin-bottom:20px;">
+    <button onclick="showTab('manual')" class="addBtn">📝 Kézi rögzítés</button>
+    <button onclick="showTab('live')" class="exportBtn">⏱ Élő szolgálat</button>
+</div>
+
+<!-- MANUAL TAB -->
+<div id="manualTab">
+
     <label>Kezdés:</label>
     <input type="time" id="start">
 
@@ -84,6 +91,25 @@ th, td {
     <button class="addBtn" onclick="addShift()">➕ Hozzáadás</button>
     <button class="exportBtn" onclick="exportCSV()">📁 Export CSV</button>
     <button class="resetBtn" onclick="resetAll()">🗑 Reset</button>
+
+</div>
+
+<!-- LIVE TAB -->
+<div id="liveTab" style="display:none; text-align:center; margin-top:20px;">
+
+    <h2>⏱ Élő Szolgálat</h2>
+
+    <p>Állapot: <span id="liveStatus">Nincs aktív szolgálat</span></p>
+    <p>Eltelt idő: <span id="liveTimer">00:00:00</span></p>
+
+    <label>Leadott fa (db):</label>
+    <input type="number" id="liveWood" placeholder="0">
+
+    <br><br>
+
+    <button class="addBtn" onclick="startLive()">🚀 Szolgálat kezdése</button>
+    <button class="danger" onclick="stopLive()">🛑 Szolgálat befejezése</button>
+
 </div>
 
 <div class="dashboard">
@@ -123,8 +149,16 @@ const WOOD_PRICE = 5000000;
 
 let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
 
+let liveStartTime = null;
+let liveInterval = null;
+
 function saveData(){
     localStorage.setItem("mta_final_shifts", JSON.stringify(shifts));
+}
+
+function showTab(tab){
+    document.getElementById("manualTab").style.display = (tab === "manual") ? "block" : "none";
+    document.getElementById("liveTab").style.display = (tab === "live") ? "block" : "none";
 }
 
 function timeToMinutes(t){
@@ -154,15 +188,61 @@ function addShift(){
     }
 
     const totalMinutes = calcMinutes(start,end);
+    const workedHours = totalMinutes / 60;
+    const paidHours = Math.floor(totalMinutes / 60);
+    const money = (paidHours * HOURLY_WAGE) + (wood * WOOD_PRICE);
 
-    const workedHours = totalMinutes / 60; // tizedes
-    const paidHours = Math.floor(totalMinutes / 60); // egész
+    shifts.push({ start, end, workedHours, paidHours, wood, money });
 
+    saveData();
+    render();
+}
+
+function startLive(){
+    if(liveStartTime){
+        alert("Már fut egy szolgálat!");
+        return;
+    }
+
+    liveStartTime = new Date();
+    document.getElementById("liveStatus").innerText = "Szolgálat folyamatban...";
+
+    liveInterval = setInterval(updateLiveTimer, 1000);
+}
+
+function updateLiveTimer(){
+    const now = new Date();
+    const diff = now - liveStartTime;
+
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+
+    document.getElementById("liveTimer").innerText =
+        String(hours).padStart(2,"0") + ":" +
+        String(minutes).padStart(2,"0") + ":" +
+        String(seconds).padStart(2,"0");
+}
+
+function stopLive(){
+    if(!liveStartTime){
+        alert("Nincs aktív szolgálat!");
+        return;
+    }
+
+    clearInterval(liveInterval);
+
+    const endTime = new Date();
+    const totalMinutes = Math.floor((endTime - liveStartTime) / 60000);
+
+    const workedHours = totalMinutes / 60;
+    const paidHours = Math.floor(totalMinutes / 60);
+    const wood = parseInt(document.getElementById("liveWood").value) || 0;
     const money = (paidHours * HOURLY_WAGE) + (wood * WOOD_PRICE);
 
     shifts.push({
-        start,
-        end,
+        start: liveStartTime.toTimeString().slice(0,5),
+        end: endTime.toTimeString().slice(0,5),
         workedHours,
         paidHours,
         wood,
@@ -171,6 +251,11 @@ function addShift(){
 
     saveData();
     render();
+
+    liveStartTime = null;
+    document.getElementById("liveStatus").innerText = "Nincs aktív szolgálat";
+    document.getElementById("liveTimer").innerText = "00:00:00";
+    document.getElementById("liveWood").value = "";
 }
 
 function deleteShift(index){
