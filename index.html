@@ -3,194 +3,242 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTA Szolgálat Követő</title>
+<title>MTA Tűzoltó Pénzügyi Rendszer</title>
 
 <style>
-    body {
-        background: linear-gradient(135deg, #1a1a1a, #2b0000);
-        color: white;
-        font-family: Arial, sans-serif;
-        padding: 20px;
-    }
+body {
+    background: linear-gradient(135deg, #1a1a1a, #300000);
+    color: white;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
 
-    h1 {
-        color: #ff3333;
-        text-align: center;
-    }
+h1 {
+    text-align: center;
+    color: #ff3b3b;
+}
 
-    .card {
-        background: #262626;
-        padding: 20px;
-        border-radius: 10px;
-        max-width: 600px;
-        margin: auto;
-        box-shadow: 0 0 15px rgba(255,0,0,0.3);
-    }
+input, select {
+    padding: 8px;
+    margin: 5px;
+    border-radius: 5px;
+    border: none;
+}
 
-    input {
-        padding: 8px;
-        margin: 5px;
-        border-radius: 5px;
-        border: none;
-        font-size: 16px;
-    }
+button {
+    padding: 8px 12px;
+    margin: 5px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
 
-    button {
-        padding: 8px 12px;
-        margin: 5px;
-        border-radius: 5px;
-        border: none;
-        cursor: pointer;
-        font-weight: bold;
-    }
+.addBtn { background: #ff3b3b; color: white; }
+.exportBtn { background: #0099ff; color: white; }
+.resetBtn { background: #555; color: white; }
+.danger { background: #990000; color: white; }
 
-    .addBtn {
-        background: #ff3333;
-        color: white;
-    }
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
 
-    .resetBtn {
-        background: #555;
-        color: white;
-    }
+.box {
+    background: #222;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(255,0,0,0.3);
+}
 
-    table {
-        width: 100%;
-        margin-top: 20px;
-        border-collapse: collapse;
-    }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
 
-    th, td {
-        padding: 10px;
-        text-align: center;
-        border-bottom: 1px solid #444;
-    }
-
-    .totalBox {
-        margin-top: 15px;
-        font-size: 18px;
-        text-align: center;
-    }
-
-    .danger {
-        background: #990000;
-        color: white;
-    }
-
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #444;
+    text-align: center;
+}
 </style>
 </head>
 <body>
 
-<h1>🚒 MTA Tűzoltó Szolgálat Követő</h1>
+<h1>🚒 MTA Tűzoltó Bevétel & Szolgálat Rendszer</h1>
 
-<div class="card">
+<div>
+    <label>Hónap:</label>
+    <select id="month"></select>
 
-    <label>Kezdés (óra:perc)</label><br>
+    <label>Kezdés:</label>
     <input type="time" id="start">
 
-    <label>Vége (óra:perc)</label><br>
+    <label>Vége:</label>
     <input type="time" id="end">
 
-    <br>
+    <label>Leadott fa (db):</label>
+    <input type="number" id="wood" placeholder="0">
+
     <button class="addBtn" onclick="addShift()">➕ Hozzáadás</button>
-    <button class="resetBtn" onclick="resetAll()">🗑 Összes törlése</button>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Kezdés</th>
-                <th>Vége</th>
-                <th>Időtartam</th>
-                <th>Törlés</th>
-            </tr>
-        </thead>
-        <tbody id="shiftTable"></tbody>
-    </table>
-
-    <div class="totalBox">
-        Összes ledolgozott idő: 
-        <strong><span id="totalHours">0</span> óra</strong>
-    </div>
-
+    <button class="exportBtn" onclick="exportCSV()">📁 Export CSV</button>
+    <button class="resetBtn" onclick="resetAll()">🗑 Reset</button>
 </div>
 
+<div class="dashboard">
+    <div class="box">
+        <h3>Teljes Óra</h3>
+        <span id="totalHours">0</span>
+    </div>
+    <div class="box">
+        <h3>Teljes Bevétel</h3>
+        <span id="totalMoney">0 Ft</span>
+    </div>
+    <div class="box">
+        <h3>Havi Bevétel</h3>
+        <span id="monthlyMoney">0 Ft</span>
+    </div>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Hónap</th>
+<th>Kezdés</th>
+<th>Vége</th>
+<th>Óra</th>
+<th>Fa</th>
+<th>Bevétel</th>
+<th>Törlés</th>
+</tr>
+</thead>
+<tbody id="shiftTable"></tbody>
+</table>
+
 <script>
-let shifts = JSON.parse(localStorage.getItem("mta_shifts")) || [];
 
-function saveData() {
-    localStorage.setItem("mta_shifts", JSON.stringify(shifts));
+const HOURLY_WAGE = 1900000;
+const WOOD_PRICE = 5000000;
+
+const monthSelect = document.getElementById("month");
+const months = ["Január","Február","Március","Április","Május","Június",
+"Július","Augusztus","Szeptember","Október","November","December"];
+
+months.forEach((m,i)=>{
+    let option=document.createElement("option");
+    option.value=i;
+    option.text=m;
+    monthSelect.appendChild(option);
+});
+
+let shifts = JSON.parse(localStorage.getItem("mta_money_shifts")) || [];
+
+function saveData(){
+    localStorage.setItem("mta_money_shifts", JSON.stringify(shifts));
 }
 
-function timeToMinutes(time) {
-    const [hours, minutes] = time.split(":").map(Number);
-    return hours * 60 + minutes;
+function timeToMinutes(t){
+    const [h,m]=t.split(":").map(Number);
+    return h*60+m;
 }
 
-function calculateDuration(start, end) {
-    let startMin = timeToMinutes(start);
-    let endMin = timeToMinutes(end);
-
-    // Éjfél átlépés kezelése
-    if (endMin < startMin) {
-        endMin += 24 * 60;
-    }
-
-    return (endMin - startMin) / 60;
+function calcDuration(s,e){
+    let start=timeToMinutes(s);
+    let end=timeToMinutes(e);
+    if(end<start) end+=1440;
+    return (end-start)/60;
 }
 
-function addShift() {
-    const start = document.getElementById("start").value;
-    const end = document.getElementById("end").value;
+function formatMoney(x){
+    return x.toLocaleString("hu-HU")+" Ft";
+}
 
-    if (!start || !end) {
-        alert("Tölts ki mindkét mezőt!");
+function addShift(){
+    const month=monthSelect.value;
+    const start=document.getElementById("start").value;
+    const end=document.getElementById("end").value;
+    const wood=parseInt(document.getElementById("wood").value)||0;
+
+    if(!start||!end){
+        alert("Tölts ki mindent!");
         return;
     }
 
-    const duration = calculateDuration(start, end).toFixed(2);
+    const hours=calcDuration(start,end);
+    const money=(hours*HOURLY_WAGE)+(wood*WOOD_PRICE);
 
-    shifts.push({ start, end, duration });
+    shifts.push({month,start,end,hours,wood,money});
     saveData();
     render();
 }
 
-function deleteShift(index) {
-    shifts.splice(index, 1);
+function deleteShift(i){
+    shifts.splice(i,1);
     saveData();
     render();
 }
 
-function resetAll() {
-    if (confirm("Biztos törlöd az összes szolgálatot?")) {
-        shifts = [];
+function resetAll(){
+    if(confirm("Biztos törlöd az összes adatot?")){
+        shifts=[];
         saveData();
         render();
     }
 }
 
-function render() {
-    const table = document.getElementById("shiftTable");
-    table.innerHTML = "";
+function render(){
+    const table=document.getElementById("shiftTable");
+    table.innerHTML="";
+    let totalHours=0;
+    let totalMoney=0;
+    let monthlyMoney=0;
+    let selectedMonth=monthSelect.value;
 
-    let total = 0;
+    shifts.forEach((s,i)=>{
+        totalHours+=s.hours;
+        totalMoney+=s.money;
+        if(s.month==selectedMonth){
+            monthlyMoney+=s.money;
+        }
 
-    shifts.forEach((shift, index) => {
-        total += parseFloat(shift.duration);
-
-        table.innerHTML += `
-            <tr>
-                <td>${shift.start}</td>
-                <td>${shift.end}</td>
-                <td>${shift.duration} óra</td>
-                <td><button class="danger" onclick="deleteShift(${index})">❌</button></td>
-            </tr>
-        `;
+        table.innerHTML+=`
+        <tr>
+        <td>${months[s.month]}</td>
+        <td>${s.start}</td>
+        <td>${s.end}</td>
+        <td>${s.hours.toFixed(2)}</td>
+        <td>${s.wood}</td>
+        <td>${formatMoney(s.money)}</td>
+        <td><button class="danger" onclick="deleteShift(${i})">❌</button></td>
+        </tr>`;
     });
 
-    document.getElementById("totalHours").innerText = total.toFixed(2);
+    document.getElementById("totalHours").innerText=totalHours.toFixed(2)+" óra";
+    document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
+    document.getElementById("monthlyMoney").innerText=formatMoney(monthlyMoney);
 }
 
+function exportCSV(){
+    let csv="Hónap,Kezdés,Vége,Óra,Fa,Bevétel\n";
+    shifts.forEach(s=>{
+        csv+=`${months[s.month]},${s.start},${s.end},${s.hours},${s.wood},${s.money}\n`;
+    });
+
+    let blob=new Blob([csv],{type:"text/csv"});
+    let a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="mta_bevetel.csv";
+    a.click();
+}
+
+monthSelect.addEventListener("change",render);
+
 render();
+
 </script>
 
 </body>
