@@ -69,7 +69,7 @@ th, td {
 </head>
 <body>
 
-<h1>🚒 MTA Tűzoltó Bevétel & Óra Tracker</h1>
+<h1>🚒 HLSA OKF Dutyperc & Fizetés számláló</h1>
 
 <div>
     <label>Kezdés:</label>
@@ -88,7 +88,7 @@ th, td {
 
 <div class="dashboard">
     <div class="box">
-        <h3>Teljes Óra</h3>
+        <h3>Teljes Fizetett Óra</h3>
         <span id="totalHours">0 óra</span>
     </div>
     <div class="box">
@@ -102,7 +102,7 @@ th, td {
 <tr>
 <th>Kezdés</th>
 <th>Vége</th>
-<th>Óra</th>
+<th>Fizetett óra</th>
 <th>Fa</th>
 <th>Bevétel</th>
 <th>Törlés</th>
@@ -123,88 +123,100 @@ function saveData(){
 }
 
 function timeToMinutes(t){
-    const [h,m]=t.split(":").map(Number);
-    return h*60+m;
+    const [h,m] = t.split(":").map(Number);
+    return h*60 + m;
 }
 
-function calcDuration(s,e){
-    let start=timeToMinutes(s);
-    let end=timeToMinutes(e);
-    if(end<start) end+=1440;
-    return (end-start)/60;
+function calcMinutes(start,end){
+    let s = timeToMinutes(start);
+    let e = timeToMinutes(end);
+    if(e < s) e += 1440; // éjfél átlépés
+    return e - s;
 }
 
 function formatMoney(x){
-    return x.toLocaleString("hu-HU")+" Ft";
+    return x.toLocaleString("hu-HU") + " Ft";
 }
 
 function addShift(){
-    const start=document.getElementById("start").value;
-    const end=document.getElementById("end").value;
-    const wood=parseInt(document.getElementById("wood").value)||0;
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    const wood = parseInt(document.getElementById("wood").value) || 0;
 
-    if(!start||!end){
+    if(!start || !end){
         alert("Tölts ki minden mezőt!");
         return;
     }
 
-    const hours=calcDuration(start,end);
-    const money=(hours*HOURLY_WAGE)+(wood*WOOD_PRICE);
+    const totalMinutes = calcMinutes(start,end);
+    const paidHours = Math.floor(totalMinutes / 60); // CSAK teljes órák
 
-    shifts.push({start,end,hours,wood,money});
+    const money = (paidHours * HOURLY_WAGE) + (wood * WOOD_PRICE);
+
+    shifts.push({
+        start,
+        end,
+        paidHours,
+        wood,
+        money
+    });
+
     saveData();
     render();
 }
 
-function deleteShift(i){
-    shifts.splice(i,1);
+function deleteShift(index){
+    shifts.splice(index,1);
     saveData();
     render();
 }
 
 function resetAll(){
     if(confirm("Biztos törlöd az összes adatot?")){
-        shifts=[];
+        shifts = [];
         saveData();
         render();
     }
 }
 
 function render(){
-    const table=document.getElementById("shiftTable");
-    table.innerHTML="";
-    let totalHours=0;
-    let totalMoney=0;
+    const table = document.getElementById("shiftTable");
+    table.innerHTML = "";
 
-    shifts.forEach((s,i)=>{
-        totalHours+=s.hours;
-        totalMoney+=s.money;
+    let totalHours = 0;
+    let totalMoney = 0;
 
-        table.innerHTML+=`
+    shifts.forEach((shift,index)=>{
+        totalHours += shift.paidHours;
+        totalMoney += shift.money;
+
+        table.innerHTML += `
         <tr>
-        <td>${s.start}</td>
-        <td>${s.end}</td>
-        <td>${s.hours.toFixed(2)}</td>
-        <td>${s.wood}</td>
-        <td>${formatMoney(s.money)}</td>
-        <td><button class="danger" onclick="deleteShift(${i})">❌</button></td>
-        </tr>`;
+            <td>${shift.start}</td>
+            <td>${shift.end}</td>
+            <td>${shift.paidHours} óra</td>
+            <td>${shift.wood}</td>
+            <td>${formatMoney(shift.money)}</td>
+            <td><button class="danger" onclick="deleteShift(${index})">❌</button></td>
+        </tr>
+        `;
     });
 
-    document.getElementById("totalHours").innerText=totalHours.toFixed(2)+" óra";
-    document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
+    document.getElementById("totalHours").innerText = totalHours + " óra";
+    document.getElementById("totalMoney").innerText = formatMoney(totalMoney);
 }
 
 function exportCSV(){
-    let csv="Kezdés,Vége,Óra,Fa,Bevétel\n";
+    let csv = "Kezdés,Vége,Fizetett órák,Fa,Bevétel\n";
+
     shifts.forEach(s=>{
-        csv+=`${s.start},${s.end},${s.hours},${s.wood},${s.money}\n`;
+        csv += `${s.start},${s.end},${s.paidHours},${s.wood},${s.money}\n`;
     });
 
-    let blob=new Blob([csv],{type:"text/csv"});
-    let a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="mta_bevetel.csv";
+    let blob = new Blob([csv],{type:"text/csv"});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mta_bevetel.csv";
     a.click();
 }
 
