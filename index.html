@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <title>MTA Tűzoltó Szolgálat Követő</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            padding: 20px;
+        }
+        h1 {
+            color: #ff4d4d;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+        }
+        button {
+            background-color: #ff4d4d;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #444;
+            text-align: center;
+        }
+        .total {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🚒 MTA Tűzoltó Szolgálat Követő</h1>
+
+<label>Szolgálat kezdete:</label>
+<input type="datetime-local" id="start">
+
+<label>Szolgálat vége:</label>
+<input type="datetime-local" id="end">
+
+<button onclick="addShift()">Hozzáadás</button>
+
+<table>
+    <thead>
+        <tr>
+            <th>Kezdés</th>
+            <th>Befejezés</th>
+            <th>Óra</th>
+            <th>Törlés</th>
+        </tr>
+    </thead>
+    <tbody id="shiftTable"></tbody>
+</table>
+
+<div class="total">
+    Összes ledolgozott idő: <span id="totalHours">0</span> óra
+</div>
+
+<script>
+    let shifts = JSON.parse(localStorage.getItem("shifts")) || [];
+
+    function saveData() {
+        localStorage.setItem("shifts", JSON.stringify(shifts));
+    }
+
+    function calculateHours(start, end) {
+        const diff = new Date(end) - new Date(start);
+        return (diff / (1000 * 60 * 60)).toFixed(2);
+    }
+
+    function addShift() {
+        const start = document.getElementById("start").value;
+        const end = document.getElementById("end").value;
+
+        if (!start || !end) {
+            alert("Tölts ki mindkét mezőt!");
+            return;
+        }
+
+        if (new Date(end) <= new Date(start)) {
+            alert("A befejezés nem lehet korábbi, mint a kezdés!");
+            return;
+        }
+
+        const hours = calculateHours(start, end);
+
+        shifts.push({ start, end, hours });
+        saveData();
+        render();
+    }
+
+    function deleteShift(index) {
+        shifts.splice(index, 1);
+        saveData();
+        render();
+    }
+
+    function render() {
+        const table = document.getElementById("shiftTable");
+        table.innerHTML = "";
+
+        let total = 0;
+
+        shifts.forEach((shift, index) => {
+            total += parseFloat(shift.hours);
+
+            table.innerHTML += `
+                <tr>
+                    <td>${shift.start.replace("T", " ")}</td>
+                    <td>${shift.end.replace("T", " ")}</td>
+                    <td>${shift.hours}</td>
+                    <td><button onclick="deleteShift(${index})">❌</button></td>
+                </tr>
+            `;
+        });
+
+        document.getElementById("totalHours").innerText = total.toFixed(2);
+    }
+
+    render();
+</script>
+
+</body>
+</html>
