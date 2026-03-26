@@ -24,7 +24,7 @@ table { width:100%; border-collapse:collapse; margin-top:20px; }
 th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 
 .progress-container { background:#333; border-radius:10px; width:100%; height:25px; margin-top:20px; }
-.progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; color:white; font-weight:bold; }
+.progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; }
 </style>
 </head>
 
@@ -32,171 +32,150 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 
 <h1>🚒 OKF Duty & Bevétel Tracker</h1>
 
-<div style="text-align:center; margin-bottom:20px;">
-<button onclick="showTab('manual')" class="addBtn">📝 Kézi rögzítés</button>
-<button onclick="showTab('live')" class="exportBtn">⏱ Élő szolgálat</button>
+<div style="text-align:center;">
+<button onclick="showTab('manual')" class="addBtn">📝 Kézi</button>
+<button onclick="showTab('live')" class="exportBtn">⏱ Élő</button>
 </div>
 
-<!-- Kézi rögzítés -->
+<!-- Kézi -->
 <div id="manualTab">
-<label>Kezdés:</label>
 <input type="time" id="start">
-<label>Vége:</label>
 <input type="time" id="end">
-<label>Leadott fa (db):</label>
-<input type="number" id="wood" placeholder="0">
-
-<button class="addBtn" onclick="addShift()">➕ Hozzáadás</button>
-<button class="exportBtn" onclick="exportCSV()">📁 Export CSV</button>
-<button class="resetBtn" onclick="resetAll()">🗑 Reset</button>
+<input type="number" id="wood" placeholder="Fa">
+<button onclick="addShift()" class="addBtn">➕</button>
 </div>
 
-<!-- Élő szolgálat -->
-<div id="liveTab" style="display:none; text-align:center; margin-top:20px;">
-<h2>⏱ Élő Szolgálat</h2>
-<p>Állapot: <span id="liveStatus">Nincs aktív szolgálat</span></p>
-<p>Eltelt idő: <span id="liveTimer">00:00:00</span></p>
+<!-- Élő -->
+<div id="liveTab" style="display:none; text-align:center;">
+<h2>⏱ Élő szolgálat</h2>
+<p id="liveStatus">Nincs aktív</p>
+<p id="liveTimer">00:00:00</p>
 
-<label>Leadott fa (db):</label>
-<input type="number" id="liveWood" placeholder="0"><br><br>
-
-<button class="addBtn" onclick="startLive()">🚀 Szolgálat kezdése</button>
-<button class="danger" onclick="stopLive()">🛑 Szolgálat befejezése</button>
+<input type="number" id="liveWood" placeholder="Fa">
 
 <br><br>
-
-<label>Ledolgozott idő órában:</label>
-<input type="number" id="manualHours" step="0.01">
-<label>Ledolgozott idő percben:</label>
-<input type="number" id="manualMinutes">
-
-<button class="addBtn" onclick="saveManualDuty()">💾 Mentés kézzel</button>
+<button onclick="startLive()" class="addBtn">Start</button>
+<button onclick="stopLive()" class="danger">Stop</button>
 </div>
 
 <div class="dashboard">
-<div class="box"><h3>Teljes Ledolgozott Óra</h3><span id="totalWorked">0.00 óra</span></div>
-<div class="box"><h3>Teljes Fizetett Óra</h3><span id="totalPaid">0 óra</span></div>
-<div class="box"><h3>Teljes Bevétel</h3><span id="totalMoney">0 Ft</span></div>
+<div class="box">Munka: <span id="totalWorked">0</span></div>
+<div class="box">Fizetett: <span id="totalPaid">0</span></div>
+<div class="box">Pénz: <span id="totalMoney">0</span></div>
 </div>
 
 <table>
-<thead>
-<tr>
-<th>Kezdés</th><th>Vége</th><th>Ledolgozott</th><th>Fizetett</th><th>Fa</th><th>Bevétel</th><th>Törlés</th>
-</tr>
-</thead>
+<thead><tr><th>Kezdés</th><th>Vége</th><th>Óra</th><th>Pénz</th></tr></thead>
 <tbody id="shiftTable"></tbody>
 </table>
 
-<h3>Kétszer hetente elvárt 60 óra teljesítés:</h3>
 <div class="progress-container">
-<div class="progress-bar" id="progressBar">0%</div>
+<div id="progressBar" class="progress-bar">0%</div>
 </div>
 
-<!-- 🔽 IDE KERÜLT LE -->
-<h3>Következő meeting visszaszámláló:</h3>
-<div class="box">
-<span id="meetingCountdown">Betöltés...</span>
-</div>
+<!-- MEETING -->
+<h3>Következő meeting:</h3>
+<div class="box"><span id="meetingCountdown"></span></div>
 
 <script>
-// KONFIG
-const HOURLY_WAGE = 2000000;
-const WOOD_PRICE = 5000000;
-const LAST_MEETING = new Date("2026-03-14T18:00:00");
+const HOURLY_WAGE=2000000;
+const WOOD_PRICE=5000000;
+const LAST_MEETING=new Date("2026-03-14T18:00:00");
 
-let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
-let liveStartTime = null;
-let liveInterval = null;
+let shifts=[];
+let liveStartTime=null;
+let liveInterval=null;
+
+// TAB
+function showTab(tab){
+document.getElementById("manualTab").style.display=(tab==="manual")?"block":"none";
+document.getElementById("liveTab").style.display=(tab==="live")?"block":"none";
+}
+
+// LIVE TIMER
+function startLive(){
+if(liveStartTime) return;
+
+liveStartTime=new Date();
+document.getElementById("liveStatus").innerText="Fut";
+
+liveInterval=setInterval(()=>{
+const diff=new Date()-liveStartTime;
+const h=Math.floor(diff/3600000);
+const m=Math.floor((diff%3600000)/60000);
+const s=Math.floor((diff%60000)/1000);
+
+document.getElementById("liveTimer").innerText=
+`${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
+},1000);
+}
+
+function stopLive(){
+if(!liveStartTime) return;
+
+clearInterval(liveInterval);
+
+const end=new Date();
+const hours=(end-liveStartTime)/3600000;
+
+const money=Math.floor(hours)*HOURLY_WAGE;
+
+shifts.push({
+start:liveStartTime.toLocaleTimeString(),
+end:end.toLocaleTimeString(),
+hours,
+money
+});
+
+liveStartTime=null;
+render();
+}
 
 // MEETING
 function getNextMeeting(){
-    let next = new Date(LAST_MEETING);
-    const now = new Date();
-    while(next < now){ next.setDate(next.getDate() + 14); }
-    return next;
+let n=new Date(LAST_MEETING);
+while(n<new Date()){ n.setDate(n.getDate()+14); }
+return n;
 }
 
-function updateMeetingCountdown(){
-    const now = new Date();
-    const next = getNextMeeting();
-    const diff = next - now;
+setInterval(()=>{
+const diff=getNextMeeting()-new Date();
 
-    if(diff <= 0){
-        document.getElementById("meetingCountdown").innerText="Meeting folyamatban!";
-        return;
-    }
+const d=Math.floor(diff/86400000);
+const h=Math.floor((diff%86400000)/3600000);
+const m=Math.floor((diff%3600000)/60000);
+const s=Math.floor((diff%60000)/1000);
 
-    const d=Math.floor(diff/86400000);
-    const h=Math.floor((diff%86400000)/3600000);
-    const m=Math.floor((diff%3600000)/60000);
-    const s=Math.floor((diff%60000)/1000);
+document.getElementById("meetingCountdown").innerText=
+`${d} nap ${h} óra ${m} perc ${s} mp`;
+},1000);
 
-    document.getElementById("meetingCountdown").innerText=
-    `${d} nap ${h} óra ${m} perc ${s} mp`;
-}
-
-setInterval(updateMeetingCountdown,1000);
-updateMeetingCountdown();
-
-// többi kód változatlan...
-function saveData(){ localStorage.setItem("mta_final_shifts",JSON.stringify(shifts)); }
-function showTab(tab){
-document.getElementById("manualTab").style.display=(tab==='manual')?'block':'none';
-document.getElementById("liveTab").style.display=(tab==='live')?'block':'none';
-}
-function timeToMinutes(t){ const [h,m]=t.split(":").map(Number); return h*60+m; }
-function calcMinutes(start,end){ let s=timeToMinutes(start); let e=timeToMinutes(end); if(e<s)e+=1440; return e-s; }
-function formatMoney(x){ return x.toLocaleString("hu-HU")+" Ft"; }
-
-function addShift(){
-const start=document.getElementById("start").value;
-const end=document.getElementById("end").value;
-const wood=parseInt(document.getElementById("wood").value)||0;
-if(!start||!end){ alert("Tölts ki minden mezőt!"); return; }
-
-const totalMinutes=calcMinutes(start,end);
-const workedHours=totalMinutes/60;
-const paidHours=Math.floor(totalMinutes/60);
-const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
-
-shifts.push({start,end,workedHours,paidHours,wood,money});
-saveData(); render();
-}
-
+// RENDER
 function render(){
+let w=0,p=0;
+
 const table=document.getElementById("shiftTable");
 table.innerHTML="";
-let totalWorked=0,totalPaid=0,totalMoney=0;
 
-shifts.forEach((s,i)=>{
-totalWorked+=s.workedHours;
-totalPaid+=s.paidHours;
-totalMoney+=s.money;
+shifts.forEach(s=>{
+w+=s.hours;
+p+=s.money;
 
 table.innerHTML+=`<tr>
 <td>${s.start}</td>
 <td>${s.end}</td>
-<td>${s.workedHours.toFixed(2)}</td>
-<td>${s.paidHours}</td>
-<td>${s.wood}</td>
-<td>${formatMoney(s.money)}</td>
-<td><button onclick="deleteShift(${i})">❌</button></td>
+<td>${s.hours.toFixed(2)}</td>
+<td>${s.money}</td>
 </tr>`;
 });
 
-document.getElementById("totalWorked").innerText=totalWorked.toFixed(2)+" óra";
-document.getElementById("totalPaid").innerText=totalPaid+" óra";
-document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
+document.getElementById("totalWorked").innerText=w.toFixed(2);
+document.getElementById("totalMoney").innerText=p;
 
-const progress=Math.min((totalWorked/60)*100,100);
-document.getElementById("progressBar").style.width=progress+"%";
-document.getElementById("progressBar").innerText=progress.toFixed(1)+"%";
+const prog=Math.min((w/60)*100,100);
+document.getElementById("progressBar").style.width=prog+"%";
+document.getElementById("progressBar").innerText=prog.toFixed(1)+"%";
 }
-
-function deleteShift(i){ shifts.splice(i,1); saveData(); render(); }
-
-render();
 </script>
 
 </body>
