@@ -4,23 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HLSA OKF Duty Tracker</title>
+
 <style>
 body { background: linear-gradient(135deg,#1a1a1a,#2a0000); color:white; font-family:Arial,sans-serif; padding:20px; }
 h1 { text-align:center; color:#ff3b3b; }
+
 input { padding:8px; margin:5px; border-radius:5px; border:none; }
 button { padding:8px 12px; margin:5px; border-radius:5px; border:none; cursor:pointer; font-weight:bold; }
+
 .addBtn { background:#ff3b3b; color:white; }
 .exportBtn { background:#0099ff; color:white; }
 .resetBtn { background:#555; color:white; }
 .danger { background:#990000; color:white; }
+
 .dashboard { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:15px; margin-top:20px; }
 .box { background:#222; padding:15px; border-radius:10px; text-align:center; box-shadow:0 0 10px rgba(255,0,0,0.3); }
+
 table { width:100%; border-collapse:collapse; margin-top:20px; }
 th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
+
 .progress-container { background:#333; border-radius:10px; width:100%; height:25px; margin-top:20px; }
 .progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; color:white; font-weight:bold; }
 </style>
 </head>
+
 <body>
 
 <h1>🚒 OKF Duty & Bevétel Tracker</h1>
@@ -28,6 +35,12 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <div style="text-align:center; margin-bottom:20px;">
 <button onclick="showTab('manual')" class="addBtn">📝 Kézi rögzítés</button>
 <button onclick="showTab('live')" class="exportBtn">⏱ Élő szolgálat</button>
+</div>
+
+<!-- Meeting Countdown -->
+<h3>Következő meeting visszaszámláló:</h3>
+<div class="box">
+<span id="meetingCountdown">Betöltés...</span>
 </div>
 
 <!-- Kézi rögzítés -->
@@ -38,6 +51,7 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <input type="time" id="end">
 <label>Leadott fa (db):</label>
 <input type="number" id="wood" placeholder="0">
+
 <button class="addBtn" onclick="addShift()">➕ Hozzáadás</button>
 <button class="exportBtn" onclick="exportCSV()">📁 Export CSV</button>
 <button class="resetBtn" onclick="resetAll()">🗑 Reset</button>
@@ -48,15 +62,20 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <h2>⏱ Élő Szolgálat</h2>
 <p>Állapot: <span id="liveStatus">Nincs aktív szolgálat</span></p>
 <p>Eltelt idő: <span id="liveTimer">00:00:00</span></p>
+
 <label>Leadott fa (db):</label>
 <input type="number" id="liveWood" placeholder="0"><br><br>
+
 <button class="addBtn" onclick="startLive()">🚀 Szolgálat kezdése</button>
 <button class="danger" onclick="stopLive()">🛑 Szolgálat befejezése</button>
+
 <br><br>
+
 <label>Ledolgozott idő órában:</label>
-<input type="number" id="manualHours" placeholder="0" step="0.01">
+<input type="number" id="manualHours" step="0.01">
 <label>Ledolgozott idő percben:</label>
-<input type="number" id="manualMinutes" placeholder="0">
+<input type="number" id="manualMinutes">
+
 <button class="addBtn" onclick="saveManualDuty()">💾 Mentés kézzel</button>
 </div>
 
@@ -75,20 +94,56 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <tbody id="shiftTable"></tbody>
 </table>
 
-<!-- 60 ÓRA PROGRESS -->
 <h3>Kétszer hetente elvárt 60 óra teljesítés:</h3>
 <div class="progress-container">
 <div class="progress-bar" id="progressBar">0%</div>
 </div>
 
 <script>
-const HOURLY_WAGE=1900000;
-const WOOD_PRICE=5000000;
-let shifts=JSON.parse(localStorage.getItem("mta_final_shifts"))||[];
-let liveStartTime=null;
-let liveInterval=null;
+// KONFIG
+const HOURLY_WAGE = 2000000;
+const WOOD_PRICE = 5000000;
+const LAST_MEETING = new Date("2026-03-14T18:00:00");
 
-// Alap függvények
+let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
+let liveStartTime = null;
+let liveInterval = null;
+
+// MEETING LOGIKA
+function getNextMeeting(){
+    let next = new Date(LAST_MEETING);
+    const now = new Date();
+
+    while(next < now){
+        next.setDate(next.getDate() + 14);
+    }
+
+    return next;
+}
+
+function updateMeetingCountdown(){
+    const now = new Date();
+    const nextMeeting = getNextMeeting();
+    const diff = nextMeeting - now;
+
+    if(diff <= 0){
+        document.getElementById("meetingCountdown").innerText = "Meeting folyamatban!";
+        return;
+    }
+
+    const d = Math.floor(diff / (1000*60*60*24));
+    const h = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const m = Math.floor((diff % (1000*60*60)) / (1000*60));
+    const s = Math.floor((diff % (1000*60)) / 1000);
+
+    document.getElementById("meetingCountdown").innerText =
+        `${d} nap ${h} óra ${m} perc ${s} mp`;
+}
+
+setInterval(updateMeetingCountdown,1000);
+updateMeetingCountdown();
+
+// ALAP
 function saveData(){ localStorage.setItem("mta_final_shifts",JSON.stringify(shifts)); }
 function showTab(tab){
 document.getElementById("manualTab").style.display=(tab==='manual')?'block':'none';
@@ -98,117 +153,101 @@ function timeToMinutes(t){ const [h,m]=t.split(":").map(Number); return h*60+m; 
 function calcMinutes(start,end){ let s=timeToMinutes(start); let e=timeToMinutes(end); if(e<s)e+=1440; return e-s; }
 function formatMoney(x){ return x.toLocaleString("hu-HU")+" Ft"; }
 
-// Kézi rögzítés
+// KÉZI
 function addShift(){
 const start=document.getElementById("start").value;
 const end=document.getElementById("end").value;
 const wood=parseInt(document.getElementById("wood").value)||0;
 if(!start||!end){ alert("Tölts ki minden mezőt!"); return; }
+
 const totalMinutes=calcMinutes(start,end);
 const workedHours=totalMinutes/60;
 const paidHours=Math.floor(totalMinutes/60);
 const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
+
 shifts.push({start,end,workedHours,paidHours,wood,money});
 saveData(); render();
 }
 
-// Élő szolgálat
+// LIVE
 function startLive(){
-if(liveStartTime){ alert("Már fut egy szolgálat!"); return; }
-const savedStart=localStorage.getItem("liveStartTime");
-if(savedStart){ liveStartTime=new Date(savedStart); } 
-else { liveStartTime=new Date(); localStorage.setItem("liveStartTime",liveStartTime.toISOString()); }
-document.getElementById("liveStatus").innerText="Szolgálat folyamatban...";
+if(liveStartTime){ alert("Már fut!"); return; }
+
+liveStartTime=new Date();
+document.getElementById("liveStatus").innerText="Fut...";
 liveInterval=setInterval(updateLiveTimer,1000);
 }
+
 function updateLiveTimer(){
-const now=new Date();
-const diff=now-liveStartTime;
+const diff=new Date()-liveStartTime;
 const h=Math.floor(diff/3600000);
 const m=Math.floor((diff%3600000)/60000);
 const s=Math.floor((diff%60000)/1000);
+
 document.getElementById("liveTimer").innerText=
-String(h).padStart(2,'0')+":"+String(m).padStart(2,'0')+":"+String(s).padStart(2,'0');
+`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
+
 function stopLive(){
-if(!liveStartTime){ alert("Nincs aktív szolgálat!"); return; }
+if(!liveStartTime){ return; }
+
 clearInterval(liveInterval);
-const endTime=new Date();
-const totalMinutes=Math.floor((endTime-liveStartTime)/60000);
+
+const end=new Date();
+const totalMinutes=Math.floor((end-liveStartTime)/60000);
+
 const workedHours=totalMinutes/60;
 const paidHours=Math.floor(workedHours);
 const wood=parseInt(document.getElementById("liveWood").value)||0;
 const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
-shifts.push({start:liveStartTime.toTimeString().slice(0,5),end:endTime.toTimeString().slice(0,5),
-workedHours,paidHours,wood,money});
-saveData(); render();
-liveStartTime=null;
-document.getElementById("liveStatus").innerText="Nincs aktív szolgálat";
-document.getElementById("liveTimer").innerText="00:00:00";
-document.getElementById("liveWood").value="";
-localStorage.removeItem("liveStartTime");
-}
 
-// Kézi mentés
-function saveManualDuty(){
-const hours=parseFloat(document.getElementById("manualHours").value)||0;
-const minutes=parseInt(document.getElementById("manualMinutes").value)||0;
-if(hours<=0 && minutes<=0){ alert("Adj meg legalább egy órát vagy percet!"); return; }
-const workedHours=hours+(minutes/60);
-const paidHours=Math.floor(workedHours);
-const wood=parseInt(document.getElementById("liveWood").value)||0;
-const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
-const now=new Date();
-const endTime=now.toTimeString().slice(0,5);
-const startTime=new Date(now-workedHours*3600000).toTimeString().slice(0,5);
-shifts.push({start:startTime,end:endTime,workedHours,paidHours,wood,money});
-saveData(); render();
-document.getElementById("manualHours").value="";
-document.getElementById("manualMinutes").value="";
-document.getElementById("liveWood").value="";
-alert("Kézi szolgálat mentve!");
-}
-
-// Betöltéskor élő szolgálat
-const savedStart=localStorage.getItem("liveStartTime");
-if(savedStart){ liveStartTime=new Date(savedStart); document.getElementById("liveStatus").innerText="Szolgálat folyamatban..."; liveInterval=setInterval(updateLiveTimer,1000); }
-
-// Táblázat és reset
-function deleteShift(index){ shifts.splice(index,1); saveData(); render(); }
-function resetAll(){ if(confirm("Biztos törlöd az összes adatot?")){ shifts=[]; saveData(); render(); } }
-
-// Render + progress
-function render(){
-const table=document.getElementById("shiftTable"); table.innerHTML="";
-let totalWorked=0,totalPaid=0,totalMoney=0;
-shifts.forEach((shift,index)=>{
-totalWorked+=shift.workedHours; totalPaid+=shift.paidHours; totalMoney+=shift.money;
-table.innerHTML+=`<tr><td>${shift.start}</td><td>${shift.end}</td><td>${shift.workedHours.toFixed(2)} óra</td>
-<td>${shift.paidHours} óra</td><td>${shift.wood}</td><td>${formatMoney(shift.money)}</td>
-<td><button class="danger" onclick="deleteShift(${index})">❌</button></td></tr>`;
+shifts.push({
+start:liveStartTime.toTimeString().slice(0,5),
+end:end.toTimeString().slice(0,5),
+workedHours,paidHours,wood,money
 });
+
+liveStartTime=null;
+saveData(); render();
+}
+
+// RENDER
+function render(){
+const table=document.getElementById("shiftTable");
+table.innerHTML="";
+
+let totalWorked=0,totalPaid=0,totalMoney=0;
+
+shifts.forEach((s,i)=>{
+totalWorked+=s.workedHours;
+totalPaid+=s.paidHours;
+totalMoney+=s.money;
+
+table.innerHTML+=`
+<tr>
+<td>${s.start}</td>
+<td>${s.end}</td>
+<td>${s.workedHours.toFixed(2)}</td>
+<td>${s.paidHours}</td>
+<td>${s.wood}</td>
+<td>${formatMoney(s.money)}</td>
+<td><button onclick="deleteShift(${i})">❌</button></td>
+</tr>`;
+});
+
 document.getElementById("totalWorked").innerText=totalWorked.toFixed(2)+" óra";
 document.getElementById("totalPaid").innerText=totalPaid+" óra";
 document.getElementById("totalMoney").innerText=formatMoney(totalMoney);
 
-// Progress bar 60 órához
 const progress=Math.min((totalWorked/60)*100,100);
 document.getElementById("progressBar").style.width=progress+"%";
 document.getElementById("progressBar").innerText=progress.toFixed(1)+"%";
 }
 
-// CSV export
-function exportCSV(){
-let csv="Kezdés,Vége,Ledolgozott,Fizetett,Fa,Bevétel\n";
-shifts.forEach(s=>{ csv+=`${s.start},${s.end},${s.workedHours.toFixed(2)},${s.paidHours},${s.wood},${s.money}\n`; });
-let blob=new Blob([csv],{type:"text/csv"});
-let a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="mta_bevetel.csv";
-a.click();
-}
+function deleteShift(i){ shifts.splice(i,1); saveData(); render(); }
 
 render();
 </script>
+
 </body>
 </html>
