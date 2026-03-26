@@ -8,23 +8,18 @@
 <style>
 body { background: linear-gradient(135deg,#1a1a1a,#2a0000); color:white; font-family:Arial,sans-serif; padding:20px; }
 h1 { text-align:center; color:#ff3b3b; }
-
 input { padding:8px; margin:5px; border-radius:5px; border:none; }
 button { padding:8px 12px; margin:5px; border-radius:5px; border:none; cursor:pointer; font-weight:bold; }
-
 .addBtn { background:#ff3b3b; color:white; }
 .exportBtn { background:#0099ff; color:white; }
 .resetBtn { background:#555; color:white; }
 .danger { background:#990000; color:white; }
-
 .dashboard { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:15px; margin-top:20px; }
 .box { background:#222; padding:15px; border-radius:10px; text-align:center; box-shadow:0 0 10px rgba(255,0,0,0.3); }
-
 table { width:100%; border-collapse:collapse; margin-top:20px; }
 th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
-
 .progress-container { background:#333; border-radius:10px; width:100%; height:25px; margin-top:20px; }
-.progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; }
+.progress-bar { background:#ff3b3b; height:100%; width:0%; border-radius:10px; text-align:center; line-height:25px; color:white; font-weight:bold; }
 </style>
 </head>
 
@@ -32,9 +27,9 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 
 <h1>🚒 OKF Duty & Bevétel Tracker</h1>
 
-<div style="text-align:center;">
-<button onclick="showTab('manual')" class="addBtn">📝 Kézi</button>
-<button onclick="showTab('live')" class="exportBtn">⏱ Élő</button>
+<div style="text-align:center; margin-bottom:20px;">
+<button onclick="showTab('manual')" class="addBtn">📝 Kézi rögzítés</button>
+<button onclick="showTab('live')" class="exportBtn">⏱ Élő szolgálat</button>
 </div>
 
 <!-- Kézi -->
@@ -42,7 +37,9 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <input type="time" id="start">
 <input type="time" id="end">
 <input type="number" id="wood" placeholder="Fa">
-<button onclick="addShift()" class="addBtn">➕</button>
+<button class="addBtn" onclick="addShift()">➕</button>
+<button class="exportBtn" onclick="exportCSV()">CSV</button>
+<button class="resetBtn" onclick="resetAll()">Reset</button>
 </div>
 
 <!-- Élő -->
@@ -54,18 +51,20 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <input type="number" id="liveWood" placeholder="Fa">
 
 <br><br>
-<button onclick="startLive()" class="addBtn">Start</button>
-<button onclick="stopLive()" class="danger">Stop</button>
+<button class="addBtn" onclick="startLive()">Start</button>
+<button class="danger" onclick="stopLive()">Stop</button>
 </div>
 
 <div class="dashboard">
-<div class="box">Munka: <span id="totalWorked">0</span></div>
-<div class="box">Fizetett: <span id="totalPaid">0</span></div>
-<div class="box">Pénz: <span id="totalMoney">0</span></div>
+<div class="box"><span id="totalWorked">0</span> óra</div>
+<div class="box"><span id="totalPaid">0</span> óra</div>
+<div class="box"><span id="totalMoney">0</span> Ft</div>
 </div>
 
 <table>
-<thead><tr><th>Kezdés</th><th>Vége</th><th>Óra</th><th>Pénz</th></tr></thead>
+<thead>
+<tr><th>Kezdés</th><th>Vége</th><th>Óra</th><th>Fizetett</th><th>Pénz</th><th>X</th></tr>
+</thead>
 <tbody id="shiftTable"></tbody>
 </table>
 
@@ -73,7 +72,7 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <div id="progressBar" class="progress-bar">0%</div>
 </div>
 
-<!-- MEETING -->
+<!-- MEETING legalul -->
 <h3>Következő meeting:</h3>
 <div class="box"><span id="meetingCountdown"></span></div>
 
@@ -82,9 +81,16 @@ const HOURLY_WAGE=2000000;
 const WOOD_PRICE=5000000;
 const LAST_MEETING=new Date("2026-03-14T18:00:00");
 
-let shifts=[];
+// 🔥 FONTOS: ugyanaz a kulcs!
+let shifts=JSON.parse(localStorage.getItem("mta_final_shifts"))||[];
+
 let liveStartTime=null;
 let liveInterval=null;
+
+// SAVE
+function saveData(){
+localStorage.setItem("mta_final_shifts",JSON.stringify(shifts));
+}
 
 // TAB
 function showTab(tab){
@@ -92,14 +98,39 @@ document.getElementById("manualTab").style.display=(tab==="manual")?"block":"non
 document.getElementById("liveTab").style.display=(tab==="live")?"block":"none";
 }
 
-// LIVE TIMER
+// TIME
+function timeToMinutes(t){ const [h,m]=t.split(":").map(Number); return h*60+m; }
+function calcMinutes(s,e){ if(timeToMinutes(e)<timeToMinutes(s)) e="23:59"; return timeToMinutes(e)-timeToMinutes(s); }
+
+// ADD
+function addShift(){
+const s=document.getElementById("start").value;
+const e=document.getElementById("end").value;
+const wood=parseInt(document.getElementById("wood").value)||0;
+
+if(!s||!e) return;
+
+const min=calcMinutes(s,e);
+const wh=min/60;
+const ph=Math.floor(wh);
+const money=ph*HOURLY_WAGE + wood*WOOD_PRICE;
+
+shifts.push({start:s,end:e,workedHours:wh,paidHours:ph,money});
+saveData();
+render();
+}
+
+// LIVE
 function startLive(){
 if(liveStartTime) return;
 
 liveStartTime=new Date();
 document.getElementById("liveStatus").innerText="Fut";
 
-liveInterval=setInterval(()=>{
+liveInterval=setInterval(updateLiveTimer,1000);
+}
+
+function updateLiveTimer(){
 const diff=new Date()-liveStartTime;
 const h=Math.floor(diff/3600000);
 const m=Math.floor((diff%3600000)/60000);
@@ -107,7 +138,6 @@ const s=Math.floor((diff%60000)/1000);
 
 document.getElementById("liveTimer").innerText=
 `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
-},1000);
 }
 
 function stopLive(){
@@ -116,19 +146,69 @@ if(!liveStartTime) return;
 clearInterval(liveInterval);
 
 const end=new Date();
-const hours=(end-liveStartTime)/3600000;
+const min=Math.floor((end-liveStartTime)/60000);
 
-const money=Math.floor(hours)*HOURLY_WAGE;
+const wh=min/60;
+const ph=Math.floor(wh);
+const wood=parseInt(document.getElementById("liveWood").value)||0;
+const money=ph*HOURLY_WAGE + wood*WOOD_PRICE;
 
 shifts.push({
-start:liveStartTime.toLocaleTimeString(),
-end:end.toLocaleTimeString(),
-hours,
+start:liveStartTime.toTimeString().slice(0,5),
+end:end.toTimeString().slice(0,5),
+workedHours:wh,
+paidHours:ph,
 money
 });
 
 liveStartTime=null;
+saveData();
 render();
+}
+
+// DELETE
+function deleteShift(i){
+shifts.splice(i,1);
+saveData();
+render();
+}
+
+function resetAll(){
+if(confirm("Törlöd?")){
+shifts=[];
+saveData();
+render();
+}
+}
+
+// RENDER
+function render(){
+let tw=0,tp=0,tm=0;
+const t=document.getElementById("shiftTable");
+t.innerHTML="";
+
+shifts.forEach((s,i)=>{
+tw+=s.workedHours;
+tp+=s.paidHours;
+tm+=s.money;
+
+t.innerHTML+=`<tr>
+<td>${s.start}</td>
+<td>${s.end}</td>
+<td>${s.workedHours.toFixed(2)}</td>
+<td>${s.paidHours}</td>
+<td>${s.money}</td>
+<td><button onclick="deleteShift(${i})">X</button></td>
+</tr>`;
+});
+
+document.getElementById("totalWorked").innerText=tw.toFixed(2);
+document.getElementById("totalPaid").innerText=tp;
+document.getElementById("totalMoney").innerText=tm.toLocaleString();
+
+const p=Math.min((tw/60)*100,100);
+document.getElementById("progressBar").style.width=p+"%";
+document.getElementById("progressBar").innerText=p.toFixed(1)+"%";
 }
 
 // MEETING
@@ -150,32 +230,7 @@ document.getElementById("meetingCountdown").innerText=
 `${d} nap ${h} óra ${m} perc ${s} mp`;
 },1000);
 
-// RENDER
-function render(){
-let w=0,p=0;
-
-const table=document.getElementById("shiftTable");
-table.innerHTML="";
-
-shifts.forEach(s=>{
-w+=s.hours;
-p+=s.money;
-
-table.innerHTML+=`<tr>
-<td>${s.start}</td>
-<td>${s.end}</td>
-<td>${s.hours.toFixed(2)}</td>
-<td>${s.money}</td>
-</tr>`;
-});
-
-document.getElementById("totalWorked").innerText=w.toFixed(2);
-document.getElementById("totalMoney").innerText=p;
-
-const prog=Math.min((w/60)*100,100);
-document.getElementById("progressBar").style.width=prog+"%";
-document.getElementById("progressBar").innerText=prog.toFixed(1)+"%";
-}
+render();
 </script>
 
 </body>
