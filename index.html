@@ -37,12 +37,6 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <button onclick="showTab('live')" class="exportBtn">⏱ Élő szolgálat</button>
 </div>
 
-<!-- Meeting Countdown -->
-<h3>Következő meeting visszaszámláló:</h3>
-<div class="box">
-<span id="meetingCountdown">Betöltés...</span>
-</div>
-
 <!-- Kézi rögzítés -->
 <div id="manualTab">
 <label>Kezdés:</label>
@@ -99,6 +93,12 @@ th, td { padding:10px; border-bottom:1px solid #444; text-align:center; }
 <div class="progress-bar" id="progressBar">0%</div>
 </div>
 
+<!-- 🔽 IDE KERÜLT LE -->
+<h3>Következő meeting visszaszámláló:</h3>
+<div class="box">
+<span id="meetingCountdown">Betöltés...</span>
+</div>
+
 <script>
 // KONFIG
 const HOURLY_WAGE = 2000000;
@@ -109,41 +109,37 @@ let shifts = JSON.parse(localStorage.getItem("mta_final_shifts")) || [];
 let liveStartTime = null;
 let liveInterval = null;
 
-// MEETING LOGIKA
+// MEETING
 function getNextMeeting(){
     let next = new Date(LAST_MEETING);
     const now = new Date();
-
-    while(next < now){
-        next.setDate(next.getDate() + 14);
-    }
-
+    while(next < now){ next.setDate(next.getDate() + 14); }
     return next;
 }
 
 function updateMeetingCountdown(){
     const now = new Date();
-    const nextMeeting = getNextMeeting();
-    const diff = nextMeeting - now;
+    const next = getNextMeeting();
+    const diff = next - now;
 
     if(diff <= 0){
-        document.getElementById("meetingCountdown").innerText = "Meeting folyamatban!";
+        document.getElementById("meetingCountdown").innerText="Meeting folyamatban!";
         return;
     }
 
-    const d = Math.floor(diff / (1000*60*60*24));
-    const h = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-    const m = Math.floor((diff % (1000*60*60)) / (1000*60));
-    const s = Math.floor((diff % (1000*60)) / 1000);
+    const d=Math.floor(diff/86400000);
+    const h=Math.floor((diff%86400000)/3600000);
+    const m=Math.floor((diff%3600000)/60000);
+    const s=Math.floor((diff%60000)/1000);
 
-    document.getElementById("meetingCountdown").innerText =
-        `${d} nap ${h} óra ${m} perc ${s} mp`;
+    document.getElementById("meetingCountdown").innerText=
+    `${d} nap ${h} óra ${m} perc ${s} mp`;
 }
 
 setInterval(updateMeetingCountdown,1000);
 updateMeetingCountdown();
 
-// ALAP
+// többi kód változatlan...
 function saveData(){ localStorage.setItem("mta_final_shifts",JSON.stringify(shifts)); }
 function showTab(tab){
 document.getElementById("manualTab").style.display=(tab==='manual')?'block':'none';
@@ -153,7 +149,6 @@ function timeToMinutes(t){ const [h,m]=t.split(":").map(Number); return h*60+m; 
 function calcMinutes(start,end){ let s=timeToMinutes(start); let e=timeToMinutes(end); if(e<s)e+=1440; return e-s; }
 function formatMoney(x){ return x.toLocaleString("hu-HU")+" Ft"; }
 
-// KÉZI
 function addShift(){
 const start=document.getElementById("start").value;
 const end=document.getElementById("end").value;
@@ -169,53 +164,9 @@ shifts.push({start,end,workedHours,paidHours,wood,money});
 saveData(); render();
 }
 
-// LIVE
-function startLive(){
-if(liveStartTime){ alert("Már fut!"); return; }
-
-liveStartTime=new Date();
-document.getElementById("liveStatus").innerText="Fut...";
-liveInterval=setInterval(updateLiveTimer,1000);
-}
-
-function updateLiveTimer(){
-const diff=new Date()-liveStartTime;
-const h=Math.floor(diff/3600000);
-const m=Math.floor((diff%3600000)/60000);
-const s=Math.floor((diff%60000)/1000);
-
-document.getElementById("liveTimer").innerText=
-`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
-
-function stopLive(){
-if(!liveStartTime){ return; }
-
-clearInterval(liveInterval);
-
-const end=new Date();
-const totalMinutes=Math.floor((end-liveStartTime)/60000);
-
-const workedHours=totalMinutes/60;
-const paidHours=Math.floor(workedHours);
-const wood=parseInt(document.getElementById("liveWood").value)||0;
-const money=(paidHours*HOURLY_WAGE)+(wood*WOOD_PRICE);
-
-shifts.push({
-start:liveStartTime.toTimeString().slice(0,5),
-end:end.toTimeString().slice(0,5),
-workedHours,paidHours,wood,money
-});
-
-liveStartTime=null;
-saveData(); render();
-}
-
-// RENDER
 function render(){
 const table=document.getElementById("shiftTable");
 table.innerHTML="";
-
 let totalWorked=0,totalPaid=0,totalMoney=0;
 
 shifts.forEach((s,i)=>{
@@ -223,8 +174,7 @@ totalWorked+=s.workedHours;
 totalPaid+=s.paidHours;
 totalMoney+=s.money;
 
-table.innerHTML+=`
-<tr>
+table.innerHTML+=`<tr>
 <td>${s.start}</td>
 <td>${s.end}</td>
 <td>${s.workedHours.toFixed(2)}</td>
