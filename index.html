@@ -1,17 +1,3 @@
-Szia! Természetesen, ez egy remek kiegészítés a trackerhez.
-
-Mivel a szerelőszolgálatnál 3 perc valós idő számít 1 perc OKF szolgálati időnek (tehát egy 1/3-os szorzót alkalmazunk), létrehoztam egy új fület és a hozzá tartozó logikát.
-
-A módosítások összefoglalása:
-Új fül: "Szerelői" néven.
-
-Külön stopper: Ez a stopper méri a valós időt, de a "Számolt" mezőben rögtön mutatja a harmadolt, OKF-be beszámítható időt.
-
-Logika: Amikor leállítod, a rendszer automatikusan elosztja az eltelt perceket 3-mal, és így menti el a táblázatba.
-
-Íme a frissített kód:
-
-HTML
 <!DOCTYPE html>
 <html lang="hu">
 <head>
